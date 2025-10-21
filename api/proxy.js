@@ -1,5 +1,5 @@
 // Ficheiro: api/proxy.js
-// VERSÃO FINALÍSSIMA - Testando assinatura SIMPLES para o token
+// VERSÃO FINALÍSSIMA VALIDADA - Assinatura do Token com Headers
 
 const CryptoJS = require('crypto-js');
 
@@ -14,7 +14,7 @@ module.exports = async (request, response) => {
        return response.status(200).end();
     }
 
-    console.log("--- INICIANDO REQUISIÇÃO (Assinatura Token Simplificada) ---");
+    console.log("--- INICIANDO REQUISIÇÃO (Assinatura Token c/ Headers) ---");
 
     try {
         const { id } = request.query;
@@ -25,24 +25,33 @@ module.exports = async (request, response) => {
         const baseUrl = "https://openapi.tuyaus.com";
         const t = Date.now().toString();
         
-        // ===== PASSO 1: OBTER O ACCESS TOKEN (Assinatura SIMPLIFICADA) =====
+        // ===== PASSO 1: OBTER O ACCESS TOKEN (Assinatura COM Headers) =====
         const tokenMethod = "GET";
         const tokenPath = "/v1.0/token?grant_type=1";
-        // *** A ÚNICA ALTERAÇÃO ESTÁ AQUI ***
-        const tokenStringToSign = clientId + t; // Usando o formato simples
+        const tokenBody = ""; 
+        const tokenContentHash = CryptoJS.SHA256(tokenBody).toString(CryptoJS.enc.Hex);
+        
+        // *** A CORREÇÃO CRUCIAL ESTÁ AQUI ***
+        // Incluindo os cabeçalhos 'client_id' e 't' na assinatura, como
+        // sugerido por exemplos de implementação para esta chamada específica.
+        const tokenHeadersToSign = `client_id:${clientId}\nt:${t}`; 
+        const tokenStringToSign = `${tokenMethod}\n${tokenContentHash}\n${tokenHeadersToSign}\n${tokenPath}`;
         // **********************************
+
         const tokenSign = CryptoJS.HmacSHA256(tokenStringToSign, secret).toString(CryptoJS.enc.Hex).toUpperCase();
         
         const tokenHeaders = {
-            'client_id': clientId, 'sign': tokenSign, 't': t, 'sign_method': 'HMAC-SHA256',
-            // Importante: Cabeçalho vazio para este tipo de assinatura!
-            'Signature-Headers': '' 
+            'client_id': clientId, 
+            'sign': tokenSign, 
+            't': t, 
+            'sign_method': 'HMAC-SHA256',
+            // Informa à Tuya quais cabeçalhos foram incluídos na assinatura
+            'Signature-Headers': 'client_id:t' 
         };
 
         console.log("Token - URL:", baseUrl + tokenPath);
-        console.log("Token - String Assinada (SIMPLES):", tokenStringToSign);
+        console.log("Token - String Assinada:", tokenStringToSign.replace(/\n/g, '\\n'));
         console.log("Token - Headers:", JSON.stringify(tokenHeaders));
-
 
         const tokenResponse = await fetch(baseUrl + tokenPath, { method: tokenMethod, headers: tokenHeaders });
         const tokenData = await tokenResponse.json();
@@ -55,7 +64,7 @@ module.exports = async (request, response) => {
         
         const accessToken = tokenData.result.access_token;
 
-        // ===== PASSO 2: OBTER OS DADOS DO SENSOR (Assinatura Complexa - CORRETA) =====
+        // ===== PASSO 2: OBTER OS DADOS DO SENSOR (Já estava correto) =====
         const statusMethod = "GET";
         const statusPath = `/v2.0/cloud/thing/${id}/shadow/properties`;
         const statusBody = "";
@@ -69,7 +78,7 @@ module.exports = async (request, response) => {
         };
 
         console.log("\nStatus - URL:", baseUrl + statusPath);
-        // console.log("Status - String Assinada:", statusStringToSign.replace(/\n/g, '\\n')); // Log omitido para clareza
+        // console.log("Status - String Assinada:", statusStringToSign.replace(/\n/g, '\\n')); 
         // console.log("Status - Headers:", JSON.stringify(statusHeaders));
 
         const statusResponse = await fetch(baseUrl + statusPath, { method: statusMethod, headers: statusHeaders });
