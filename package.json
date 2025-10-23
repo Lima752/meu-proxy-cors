@@ -1,5 +1,7 @@
+
 {
-  "dependencies": {
-    "crypto-js": "^4.2.0"
-  }
+  "name": "tuya-proxy",
+  "version": "1.0.0",
+  "private": true
+  // ... resto das suas dependências de frontend (react, etc)
 }
